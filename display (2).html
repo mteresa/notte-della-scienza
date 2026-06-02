@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notte della Scienza — Display</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root {
+  --bg:#050a14; --surface:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08);
+  --text:#e8f0ff; --muted:rgba(200,210,255,0.4); --blue:#7dd3fc;
+  --green:#6ee7b7; --green-raw:#34d399; --yellow:#fbbf24;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* ── SETUP ── */
+#setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.sbox{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:480px;}
+.slogo{font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.stitle{font-size:24px;font-weight:800;margin-bottom:24px;}
+.sfield{margin-bottom:14px;}
+.sfield label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:6px;}
+.sinput{width:100%;font-family:'Space Mono',monospace;font-size:13px;padding:10px 13px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:9px;color:var(--text);outline:none;}
+.sinput:focus{border-color:var(--blue);}
+.sbtn{width:100%;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;padding:13px;border-radius:10px;border:none;cursor:pointer;margin-top:6px;transition:opacity .15s;}
+.sbtn.pri{background:var(--blue);color:#0a1628;}
+.sbtn:hover{opacity:.85;}
+
+/* ── DISPLAY ── */
+#display{display:none;flex-direction:column;min-height:100vh;background:var(--bg);}
+.dheader{display:flex;align-items:center;justify-content:space-between;padding:16px 28px 12px;border-bottom:1px solid var(--border);}
+.dlogo-sub{font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;}
+.dlogo-main{font-size:15px;font-weight:800;color:var(--blue);}
+.dright{display:flex;align-items:center;gap:14px;}
+.dclock{font-family:'Space Mono',monospace;font-size:20px;color:rgba(200,210,255,.5);}
+.syncdot{width:8px;height:8px;border-radius:50%;background:#475569;}
+.syncdot.ok{background:var(--green-raw);animation:blink 2s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+.dbody{flex:1;padding:20px 24px 48px;overflow:auto;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;transition:border-color .3s,background .3s;}
+.card.live{border-color:rgba(52,211,153,.45);background:rgba(16,185,129,.06);}
+.card.ending{border-color:rgba(251,191,36,.45);background:rgba(245,158,11,.06);}
+.card.waiting{opacity:.5;}
+.card.done{opacity:.3;}
+
+.ctop{display:flex;align-items:center;justify-content:space-between;}
+.croom{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;}
+.cbadge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:4px;}
+.bl{background:rgba(16,185,129,.2);color:var(--green);}
+.be{background:rgba(251,191,36,.18);color:var(--yellow);}
+.bw{background:rgba(200,210,255,.07);color:rgba(200,210,255,.3);}
+.bd{background:rgba(200,210,255,.05);color:rgba(200,210,255,.2);}
+.pdot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1.5s ease-in-out infinite;}
+
+.ctitle{font-size:15px;font-weight:700;color:var(--text);line-height:1.2;}
+.ctimer{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;margin-top:2px;}
+.tl{color:var(--green);} .te{color:var(--yellow);} .tw{color:rgba(200,210,255,.25);}
+.csub{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:rgba(200,210,255,.25);}
+.cprog{height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;margin-top:3px;}
+.cpfill{height:100%;border-radius:2px;transition:width 1s linear;}
+.pfl{background:linear-gradient(90deg,var(--green-raw),var(--blue));}
+.pfe{background:var(--yellow);}
+.cnote{font-size:9px;color:rgba(200,210,255,.2);margin-top:2px;}
+
+.cfg-btn{position:fixed;bottom:12px;right:20px;font-family:'Syne',sans-serif;font-size:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:rgba(200,210,255,.2);padding:5px 14px;border-radius:6px;cursor:pointer;}
+.cfg-btn:hover{color:rgba(200,210,255,.5);}
+
+/* ── ADMIN ── */
+#admin{display:none;flex-direction:column;min-height:100vh;background:#f1f5f9;}
+.ahdr{background:#0f172a;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.atitle{font-size:15px;font-weight:700;color:#e2e8f0;}
+.ahdrr{display:flex;align-items:center;gap:10px;}
+.stag{font-family:'Space Mono',monospace;font-size:11px;color:#64748b;background:#1e293b;padding:4px 10px;border-radius:6px;}
+.prevbtn{font-family:'Syne',sans-serif;background:var(--blue);color:#0a1628;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;}
+
+.abody{padding:16px 18px;max-width:860px;}
+.asec{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.15em;margin-bottom:10px;}
+.ahelp{font-size:11px;color:#94a3b8;margin-bottom:14px;line-height:1.6;}
+.addbtn{font-family:'Syne',sans-serif;background:#0f172a;color:var(--blue);font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;margin-bottom:12px;}
+
+.arow{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:11px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;transition:border-color .3s;}
+.arow.live{border-color:#10b981;background:#f0fdf4;}
+.aidx{font-family:'Space Mono',monospace;font-size:11px;color:#94a3b8;min-width:20px;}
+.afields{flex:1;display:flex;gap:8px;flex-wrap:wrap;}
+.afw{display:flex;flex-direction:column;gap:3px;}
+.afw label{font-size:9px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.1em;}
+.ainp{font-family:'Syne',sans-serif;font-size:13px;padding:6px 9px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;color:#1e293b;outline:none;}
+.ainp:focus{border-color:#3b82f6;}
+.w160{width:160px;} .w80{width:80px;} .w58{width:58px;}
+.abadge{font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:.1em;}
+.ab-live{background:#dcfce7;color:#166534;} .ab-wait{background:#f1f5f9;color:#64748b;} .ab-done{background:#fef3c7;color:#92400e;}
+.aacts{display:flex;gap:5px;margin-left:auto;}
+.abtn{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;border:1px solid #e2e8f0;background:transparent;color:#64748b;cursor:pointer;}
+.abtn:hover:not(:disabled){background:#f1f5f9;}
+.abtn:disabled{opacity:.3;cursor:default;}
+.abtn.del{border-color:#fecaca;color:#ef4444;}
+.abtn.del:hover{background:#fef2f2!important;}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);background:#1e293b;color:#e2e8f0;font-size:12px;padding:9px 18px;border-radius:8px;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- SETUP -->
+<div id="setup">
+  <div class="sbox">
+    <div class="slogo">Liceo Scientifico</div>
+    <div class="stitle">✦ Notte della Scienza</div>
+    <div class="sfield"><label>URL Firebase</label><input class="sinput" id="s-url" type="url"></div>
+    <div class="sfield"><label>API Key</label><input class="sinput" id="s-key"></div>
+    <div class="sfield"><label>Codice sessione</label><input class="sinput" id="s-sid"></div>
+    <button class="sbtn pri" onclick="doConnect()">Connetti →</button>
+  </div>
+</div>
+
+<!-- DISPLAY -->
+<div id="display">
+  <div class="dheader">
+    <div><div class="dlogo-sub">Liceo Scientifico</div><div class="dlogo-main">✦ NOTTE DELLA SCIENZA</div></div>
+    <div class="dright">
+      <div class="syncdot" id="syncdot"></div>
+      <div class="dclock" id="clock">--:--:--</div>
+    </div>
+  </div>
+  <div class="dbody"><div class="grid" id="grid"></div></div>
+  <button class="cfg-btn" onclick="show('admin')">⚙ Configura</button>
+</div>
+
+<!-- ADMIN -->
+<div id="admin">
+  <div class="ahdr">
+    <div class="atitle">⚙ Pannello di controllo</div>
+    <div class="ahdrr">
+      <div class="stag" id="stag">—</div>
+      <button class="prevbtn" onclick="show('display')">▶ Display</button>
+    </div>
+  </div>
+  <div class="abody">
+    <div class="asec">Spettacoli</div>
+    <div class="ahelp">I timer vengono avviati dai ragazzi dall'app Performer sul cellulare. Qui puoi aggiungere, modificare o rimuovere spettacoli.</div>
+    <button class="addbtn" onclick="addShow()">+ Aggiungi spettacolo</button>
+    <div id="alist"></div>
+  </div>
+</div>
+
+<script>
+// ── COSTANTI PRESET ──
+const PRESET_URL = "https://nottedellascienza2026-default-rtdb.europe-west1.firebasedatabase.app";
+const PRESET_KEY = "AIzaSyAIeLIDBH2p9ff7R1DtdpZAuXJ1HrRLF54";
+const PRESET_SID = "notte2026";
+
+const DEFAULT_SHOWS = [
+  {title:"Reazioni chimiche spettacolari", room:"Lab 1",     duration:20, color:"#3b82f6", startedAt:null},
+  {title:"Il telescopio e le stelle",       room:"Aula 3A",  duration:25, color:"#8b5cf6", startedAt:null},
+  {title:"Robot e intelligenza artificiale",room:"Aula 4B",  duration:30, color:"#10b981", startedAt:null},
+  {title:"La fisica del suono",             room:"Aula 2A",  duration:20, color:"#f59e0b", startedAt:null},
+  {title:"Anatomia del corpo umano",        room:"Lab Bio",  duration:25, color:"#ef4444", startedAt:null},
+  {title:"Esperimenti di elettricità",      room:"Lab Fis",  duration:20, color:"#06b6d4", startedAt:null},
+  {title:"Matematica ricreativa",           room:"Aula 1C",  duration:15, color:"#ec4899", startedAt:null},
+  {title:"Il DNA spiegato",                 room:"Lab Bio2", duration:25, color:"#84cc16", startedAt:null},
+  {title:"Vulcani e terremoti",             room:"Aula 3B",  duration:20, color:"#f97316", startedAt:null},
+  {title:"Ottica e ologrammi",              room:"Aula 4A",  duration:30, color:"#6366f1", startedAt:null},
+];
+
+// ── STATO ──
+// shows è sempre un array, mai undefined
+let shows = [];
+let dbRef = null;
+let sessionId = PRESET_SID;
+
+// ── UTILS ──
+function pad(n){ return String(Math.floor(Math.abs(n))).padStart(2,'0'); }
+function fmtMSS(s){ s=Math.max(0,s); return pad(s/60)+':'+pad(s%60); }
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+
+function show(view) {
+  document.getElementById('setup').style.display  = 'none';
+  document.getElementById('display').style.display = 'none';
+  document.getElementById('admin').style.display   = 'none';
+  if (view === 'display') {
+    document.getElementById('display').style.display = 'flex';
+    buildCards();
+  } else if (view === 'admin') {
+    document.getElementById('admin').style.display = 'flex';
+    renderAdmin();
+  } else {
+    document.getElementById('setup').style.display = 'flex';
+  }
+}
+
+// ── FIREBASE ──
+function doConnect() {
+  let url = document.getElementById('s-url').value.trim().replace(/\/+$/,'');
+  const key = document.getElementById('s-key').value.trim();
+  const sid = document.getElementById('s-sid').value.trim();
+  if (!url || !sid) { toast('Inserisci URL e codice sessione'); return; }
+  if (!url.startsWith('http')) url = 'https://' + url;
+  connectFirebase(url, key, sid);
+}
+
+function connectFirebase(url, key, sid) {
+  try {
+    const cfg = { databaseURL: url };
+    if (key) cfg.apiKey = key;
+    // Evita app duplicate
+    let app;
+    try { app = firebase.app('nds-display'); app.delete(); } catch(e){}
+    app = firebase.initializeApp(cfg, 'nds-display');
+    const db = firebase.database(app);
+    sessionId = sid.replace(/[^a-zA-Z0-9_-]/g,'');
+    dbRef = db.ref('sessioni/' + sessionId + '/shows');
+
+    dbRef.on('value', snap => {
+      const raw = snap.val();
+      if (raw !== null && raw !== undefined) {
+        // Firebase può restituire oggetto o array
+        const arr = Array.isArray(raw) ? raw : Object.values(raw);
+        shows = arr.filter(s => s && s.title); // filtra eventuali null
+      } else {
+        // Primo avvio: nessun dato, scrivo i default
+        shows = DEFAULT_SHOWS.map(s => ({...s}));
+        dbRef.set(shows);
+      }
+      console.log('[Display] shows aggiornati:', shows.length, shows.map(s=>s.title));
+      document.getElementById('syncdot').className = 'syncdot ok';
+      // Aggiorna la view corrente
+      const cur = document.querySelector('#display[style*="flex"], #admin[style*="flex"]');
+      if (cur?.id === 'display') buildCards();
+      else if (cur?.id === 'admin') renderAdmin();
+    }, err => {
+      document.getElementById('syncdot').className = 'syncdot';
+      toast('Errore Firebase: ' + err.message);
+      console.error('[Display] Firebase error:', err);
+    });
+
+    document.getElementById('stag').textContent = '# ' + sessionId;
+    show('display');
+  } catch(e) {
+    toast('Errore: ' + e.message);
+    console.error(e);
+  }
+}
+
+function pushShows() {
+  if (dbRef) dbRef.set(shows).catch(e => toast('Errore salvataggio: ' + e.message));
+}
+
+// ── STATO SPETTACOLO ──
+function getState(show) {
+  if (!show.startedAt) return { status:'waiting', elapsed:0, remaining:0, pct:0 };
+  const nowSec = Math.floor(Date.now() / 1000);
+  const elapsed = nowSec - show.startedAt;
+  const total = (show.duration || 20) * 60;
+  const remaining = total - elapsed;
+  if (remaining <= 0) return { status:'done', elapsed, remaining:0, pct:100 };
+  return {
+    status: remaining <= 90 ? 'ending' : 'live',
+    elapsed, remaining,
+    pct: Math.min(100, (elapsed / total) * 100)
+  };
+}
+
+// ── DISPLAY CARDS ──
+function buildCards() {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  if (!shows || shows.length === 0) {
+    grid.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:20px;grid-column:1/-1;">Nessuno spettacolo. Vai in ⚙ Configura per aggiungerne.</div>';
+    return;
+  }
+  grid.innerHTML = shows.map(s => {
+    const st = getState(s);
+    let cc='card', bh='', tc='tw', tv='--:--', sub='', pfc='', pp=0, note='';
+
+    if (st.status === 'live') {
+      cc+=' live';
+      bh=`<span class="cbadge bl"><span class="pdot"></span>Live</span>`;
+      tc='tl'; tv=fmtMSS(st.remaining); sub='alla fine';
+      pfc='pfl'; pp=st.pct;
+      note=`iniziato da ${fmtMSS(st.elapsed)}`;
+    } else if (st.status === 'ending') {
+      cc+=' ending';
+      bh=`<span class="cbadge be"><span class="pdot"></span>Quasi finito</span>`;
+      tc='te'; tv=fmtMSS(st.remaining); sub='alla fine';
+      pfc='pfe'; pp=st.pct;
+      note=`iniziato da ${fmtMSS(st.elapsed)}`;
+    } else if (st.status === 'done') {
+      cc+=' done';
+      bh=`<span class="cbadge bd">Terminato</span>`;
+      tv='—';
+    } else {
+      cc+=' waiting';
+      bh=`<span class="cbadge bw">In attesa</span>`;
+      sub='non ancora iniziato';
+    }
+
+    return `<div class="${cc}">
+      <div class="ctop"><span class="croom">${escH(s.room)}</span>${bh}</div>
+      <div class="ctitle">${escH(s.title)}</div>
+      <div class="ctimer ${tc}">${tv}</div>
+      <div class="csub">${sub}</div>
+      <div class="cprog"><div class="cpfill ${pfc}" style="width:${pp.toFixed(1)}%"></div></div>
+      <div class="cnote">${note}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN ──
+function renderAdmin() {
+  const list = document.getElementById('alist');
+  if (!list) return;
+  if (!shows || shows.length === 0) {
+    list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:10px 0;">Nessuno spettacolo. Aggiungine uno con il pulsante sopra.</div>';
+    return;
+  }
+  list.innerHTML = shows.map((s,i) => {
+    const st = getState(s);
+    let bc='ab-wait', bt='In attesa';
+    if (st.status==='live'||st.status==='ending'){bc='ab-live';bt='In corso';}
+    else if (st.status==='done'){bc='ab-done';bt='Terminato';}
+    return `<div class="arow ${(st.status==='live'||st.status==='ending')?'live':''}">
+      <div class="aidx">${i+1}</div>
+      <div class="afields">
+        <div class="afw"><label>Titolo</label><input class="ainp w160" value="${escH(s.title)}" onchange="upd(${i},'title',this.value)"></div>
+        <div class="afw"><label>Aula</label><input class="ainp w80" value="${escH(s.room)}" onchange="upd(${i},'room',this.value)"></div>
+        <div class="afw"><label>Durata (min)</label><input type="number" min="1" max="120" class="ainp w58" value="${s.duration||20}" onchange="upd(${i},'duration',+this.value||20)"></div>
+      </div>
+      <span class="abadge ${bc}">${bt}</span>
+      <div class="aacts">
+        <button class="abtn" onclick="mv(${i},-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="abtn" onclick="mv(${i},1)"  ${i===shows.length-1?'disabled':''}>↓</button>
+        <button class="abtn del" onclick="rm(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addShow(){ shows.push({title:'Nuovo spettacolo',room:'Aula',duration:20,color:'#3b82f6',startedAt:null}); pushShows(); renderAdmin(); }
+function upd(i,f,v){ shows[i][f]=v; pushShows(); }
+function rm(i){ shows.splice(i,1); pushShows(); renderAdmin(); }
+function mv(i,d){ const j=i+d; if(j<0||j>=shows.length)return; [shows[i],shows[j]]=[shows[j],shows[i]]; pushShows(); renderAdmin(); }
+
+// ── CLOCK TICK ──
+setInterval(() => {
+  const n = new Date();
+  const el = document.getElementById('clock');
+  if (el) el.textContent = pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+  // Aggiorna solo la view attiva
+  if (document.getElementById('display').style.display === 'flex') buildCards();
+  else if (document.getElementById('admin').style.display === 'flex') renderAdmin();
+}, 1000);
+
+// ── AVVIO AUTOMATICO ──
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('s-url').value = PRESET_URL;
+  document.getElementById('s-key').value = PRESET_KEY;
+  document.getElementById('s-sid').value = PRESET_SID;
+  connectFirebase(PRESET_URL, PRESET_KEY, PRESET_SID);
+});
+</script>
+</body>
+</html>

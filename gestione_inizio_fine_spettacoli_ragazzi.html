@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Notte della Scienza — Performer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+:root {
+  --bg: #080f1e;
+  --card: #111827;
+  --border: rgba(255,255,255,0.08);
+  --text: #f0f6ff;
+  --muted: rgba(200,215,255,0.45);
+  --blue: #7dd3fc;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --radius: 16px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+/* ── SETUP ── */
+#setup {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.setup-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  width: 100%; max-width: 420px;
+}
+.setup-logo { font-size: 10px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+.setup-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.setup-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; line-height: 1.6; }
+.field { margin-bottom: 16px; }
+.field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); margin-bottom: 6px; }
+.field input {
+  width: 100%; font-family: 'Space Mono', monospace; font-size: 14px;
+  padding: 12px 14px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  color: var(--text); outline: none; transition: border 0.2s;
+}
+.field input:focus { border-color: var(--blue); }
+.hint { font-size: 11px; color: rgba(200,215,255,0.25); margin-top: 6px; line-height: 1.5; }
+.big-btn {
+  width: 100%; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+  padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+  transition: opacity 0.15s; margin-top: 4px;
+}
+.big-btn.primary { background: var(--blue); color: #0a1628; }
+.big-btn.ghost { background: transparent; color: var(--blue); border: 1px solid rgba(125,211,252,0.25); margin-top: 8px; }
+.big-btn:hover { opacity: 0.85; }
+.or { text-align: center; font-size: 11px; color: rgba(200,215,255,0.2); letter-spacing: 0.1em; margin: 12px 0; }
+
+/* ── MAIN APP ── */
+#app { display: none; padding: 0; }
+
+/* Header */
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  background: rgba(8,15,30,0.95);
+  backdrop-filter: blur(10px);
+  z-index: 50;
+}
+.app-logo { font-size: 13px; font-weight: 800; color: var(--blue); }
+.app-session { font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(200,215,255,0.25); }
+.sync-pill {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 20px;
+}
+.sdot { width: 6px; height: 6px; border-radius: 50%; background: #64748b; }
+.sdot.ok { background: var(--green); animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+/* My show card */
+.my-show-wrap { padding: 20px 16px 12px; }
+.section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.15em; color: var(--muted); margin-bottom: 10px;
+}
+
+.my-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.my-card.running { border-color: rgba(52,211,153,0.5); }
+.my-card.ending  { border-color: rgba(251,191,36,0.5); }
+
+.my-card-top {
+  padding: 18px 18px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.my-show-name { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.my-show-room { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+.status-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.status-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; padding: 4px 10px; border-radius: 20px;
+  display: flex; align-items: center; gap: 5px;
+}
+.sb-idle    { background: rgba(255,255,255,0.06); color: rgba(200,215,255,0.4); }
+.sb-running { background: rgba(52,211,153,0.15); color: var(--green); }
+.sb-ending  { background: rgba(251,191,36,0.15); color: var(--yellow); }
+.sb-done    { background: rgba(248,113,113,0.12); color: var(--red); }
+.sb-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: blink 1.5s ease-in-out infinite; }
+
+.timer-display {
+  font-family: 'Space Mono', monospace;
+  font-size: 42px; font-weight: 700;
+  padding: 20px 18px 6px;
+  line-height: 1;
+}
+.timer-display.idle   { color: rgba(200,215,255,0.2); }
+.timer-display.run    { color: var(--green); }
+.timer-display.ending { color: var(--yellow); }
+.timer-display.done   { color: var(--red); }
+
+.timer-sub { font-size: 11px; color: var(--muted); padding: 0 18px 16px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.prog-bar { height: 4px; background: rgba(255,255,255,0.07); }
+.prog-fill { height: 100%; transition: width 1s linear; }
+.pf-run  { background: linear-gradient(90deg, var(--green), var(--blue)); }
+.pf-end  { background: var(--yellow); }
+
+/* Duration edit */
+.dur-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}
+.dur-label { font-size: 12px; color: var(--muted); font-weight: 600; flex: 1; }
+.dur-stepper { display: flex; align-items: center; gap: 0; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
+.dur-btn {
+  font-size: 18px; font-weight: 700; color: var(--blue);
+  background: transparent; border: none; cursor: pointer;
+  padding: 8px 14px; line-height: 1;
+  transition: background 0.15s;
+}
+.dur-btn:hover { background: rgba(125,211,252,0.1); }
+.dur-val {
+  font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700;
+  color: var(--text); min-width: 52px; text-align: center;
+}
+
+/* Action buttons */
+.action-row { display: flex; gap: 10px; padding: 14px 18px 18px; }
+.act-btn {
+  flex: 1; font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+  padding: 16px; border-radius: 12px; border: none; cursor: pointer;
+  transition: all 0.15s; letter-spacing: 0.04em;
+}
+.act-btn:active { transform: scale(0.97); }
+.act-start { background: var(--green); color: #0a1628; }
+.act-stop  { background: var(--red);   color: #fff; }
+.act-reset { background: rgba(255,255,255,0.07); color: var(--muted); border: 1px solid var(--border); }
+.act-btn:disabled { opacity: 0.3; cursor: default; transform: none; }
+
+/* All shows list */
+.all-shows-wrap { padding: 4px 16px 20px; }
+.show-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.show-item.mine { border-color: rgba(125,211,252,0.4); background: rgba(125,211,252,0.05); cursor: default; }
+.show-item.live { border-color: rgba(52,211,153,0.45); }
+.show-item.ending { border-color: rgba(251,191,36,0.45); }
+
+.si-color { width: 10px; min-width: 10px; height: 10px; border-radius: 3px; }
+.si-info { flex: 1; min-width: 0; }
+.si-title { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-room  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.si-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.si-timer { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; }
+.si-timer.run    { color: var(--green); }
+.si-timer.ending { color: var(--yellow); }
+.si-timer.idle   { color: rgba(200,215,255,0.2); }
+.si-dur   { font-size: 10px; color: rgba(200,215,255,0.3); }
+.si-bar { position: absolute; bottom: 0; left: 0; height: 3px; transition: width 1s linear; }
+.si-mine-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--blue); background: rgba(125,211,252,0.12);
+  border: 1px solid rgba(125,211,252,0.2);
+  padding: 2px 7px; border-radius: 10px; text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Choose show modal */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(5,10,20,0.88); z-index: 200;
+  align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+.modal-bg.open { display: flex; }
+.modal-sheet {
+  background: #111827; border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+  width: 100%; max-width: 500px;
+  padding: 20px 16px 40px;
+  max-height: 80vh; overflow-y: auto;
+}
+.sheet-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; margin: 0 auto 16px; }
+.sheet-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; text-align: center; }
+.sheet-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 12px; border-radius: 12px; cursor: pointer;
+  transition: background 0.15s; margin-bottom: 6px;
+}
+.sheet-item:hover { background: rgba(255,255,255,0.05); }
+.sheet-item:active { background: rgba(255,255,255,0.09); }
+.si-dot { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(16px); background: #1e293b; color: #e2e8f0; font-size: 13px; padding: 10px 20px; border-radius: 10px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- ── SETUP ── -->
+<div id="setup">
+  <div class="setup-card">
+    <div class="setup-logo">Liceo Scientifico</div>
+    <div class="setup-title">🔭 Notte della Scienza</div>
+    <div class="setup-sub">Inserisci i dati per connetterti all'evento e scegliere il tuo spettacolo.</div>
+    <div class="field">
+      <label>URL Database Firebase</label>
+      <input id="s-url" type="url" placeholder="https://xxx-default-rtdb.europe-west1.firebasedatabase.app" autocomplete="off" autocorrect="off" autocapitalize="off">
+    </div>
+    <div class="field">
+      <label>API Key Firebase</label>
+      <input id="s-key" type="text" placeholder="AIzaSy..." autocomplete="off" autocorrect="off" autocapitalize="off">
+    </div>
+    <div class="field">
+      <label>Codice sessione evento</label>
+      <input id="s-sid" type="text" placeholder="es. notte2025" autocomplete="off" autocorrect="off" autocapitalize="none">
+      <div class="hint">Ti viene dato dall'organizzatore — deve essere uguale su tutti i dispositivi.</div>
+    </div>
+    <button class="big-btn primary" onclick="connect()">Connetti →</button>
+    <div class="or">— oppure —</div>
+    <button class="big-btn ghost" onclick="useDemo()">Prova con dati di esempio</button>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="app">
+  <div class="app-header">
+    <div>
+      <div class="app-logo">✦ Notte della Scienza</div>
+      <div class="app-session" id="session-tag">—</div>
+    </div>
+    <div class="sync-pill">
+      <div class="sdot" id="sdot"></div>
+      <span id="sync-txt">—</span>
+    </div>
+  </div>
+
+  <!-- My show -->
+  <div class="my-show-wrap">
+    <div class="section-label">Il tuo spettacolo</div>
+    <div class="my-card" id="my-card">
+      <div class="my-card-top">
+        <div class="my-show-name" id="my-name">—</div>
+        <div class="my-show-room" id="my-room">—</div>
+      </div>
+      <div class="status-row">
+        <div class="status-badge sb-idle" id="my-badge">In attesa</div>
+      </div>
+      <div class="timer-display idle" id="my-timer">--:--</div>
+      <div class="timer-sub" id="my-sub">premi Inizia per avviare</div>
+      <div class="prog-bar"><div class="prog-fill" id="my-prog" style="width:0%"></div></div>
+      <div class="dur-row">
+        <div class="dur-label">Durata spettacolo</div>
+        <div class="dur-stepper">
+          <button class="dur-btn" onclick="changeDur(-5)">−</button>
+          <div class="dur-val" id="dur-val">20 min</div>
+          <button class="dur-btn" onclick="changeDur(+5)">+</button>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="act-btn act-start" id="btn-start" onclick="startShow()">▶ Inizia</button>
+        <button class="act-btn act-stop"  id="btn-stop"  onclick="stopShow()" disabled>■ Termina</button>
+        <button class="act-btn act-reset" id="btn-reset" onclick="resetShow()" style="display:none">↺</button>
+      </div>
+    </div>
+    <div style="margin-top:10px; text-align:center;">
+      <button onclick="openChoose()" style="font-family:'Syne',sans-serif;font-size:12px;font-weight:600;background:transparent;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px;">Cambia spettacolo assegnato</button>
+    </div>
+  </div>
+
+  <!-- All shows -->
+  <div class="all-shows-wrap">
+    <div class="section-label">Tutti gli spettacoli</div>
+    <div id="all-list"></div>
+  </div>
+</div>
+
+<!-- Choose modal -->
+<div class="modal-bg" id="choose-modal" onclick="closeChoose(event)">
+  <div class="modal-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Quale spettacolo gestisci?</div>
+    <div id="choose-list"></div>
+  </div>
+</div>
+
+<script>
+const PALETTE = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+const DEMO = [
+  {id:'s0',title:'Reazioni chimiche',      room:'Lab 1',    duration:20, color:'#3b82f6', startedAt:null},
+  {id:'s1',title:'Il telescopio e le stelle',room:'Aula 3A',duration:25, color:'#8b5cf6', startedAt:null},
+  {id:'s2',title:'Robot e AI',             room:'Aula 4B',  duration:30, color:'#10b981', startedAt:null},
+  {id:'s3',title:'La fisica del suono',    room:'Aula 2A',  duration:20, color:'#f59e0b', startedAt:null},
+  {id:'s4',title:'Anatomia umana',         room:'Lab Bio',  duration:25, color:'#ef4444', startedAt:null},
+  {id:'s5',title:'Esperimenti elettricità',room:'Lab Fis',  duration:20, color:'#06b6d4', startedAt:null},
+  {id:'s6',title:'Matematica ricreativa',  room:'Aula 1C',  duration:15, color:'#ec4899', startedAt:null},
+  {id:'s7',title:'Il DNA spiegato',        room:'Lab Bio2', duration:25, color:'#84cc16', startedAt:null},
+  {id:'s8',title:'Vulcani e terremoti',    room:'Aula 3B',  duration:20, color:'#f97316', startedAt:null},
+  {id:'s9',title:'Ottica e ologrammi',     room:'Aula 4A',  duration:30, color:'#6366f1', startedAt:null},
+];
+
+let db = null, dbRef = null, localMode = false;
+let shows = [];
+let myShowId = localStorage.getItem('nds_my_show') || null;
+
+// ── FIREBASE ──
+function connect() {
+  let url = document.getElementById('s-url').value.trim().replace(/\/+$/,'');
+  const key = document.getElementById('s-key').value.trim();
+  const sid = document.getElementById('s-sid').value.trim();
+  if (!url || !sid) { toast('Inserisci URL e codice sessione'); return; }
+  if (!url.startsWith('http')) url = 'https://' + url;
+  try {
+    const cfg = { databaseURL: url };
+    if (key) cfg.apiKey = key;
+    const app = firebase.initializeApp(cfg, 'perf-' + Date.now());
+    db = firebase.database(app);
+    dbRef = db.ref('sessioni/' + sid.replace(/[^a-zA-Z0-9_-]/g,'') + '/shows');
+    dbRef.on('value', snap => {
+      const data = snap.val();
+      if (data) {
+        // data può essere array o oggetto
+        shows = Array.isArray(data) ? data : Object.values(data);
+        // assicura che ogni show abbia un id
+        shows = shows.map((s,i) => ({ id: s.id||('s'+i), color: PALETTE[i%PALETTE.length], startedAt: null, ...s }));
+      } else {
+        shows = DEMO.map(s=>({...s}));
+        dbRef.set(shows);
+      }
+      setSynced(true);
+      renderAll();
+    }, () => setSynced(false));
+    localStorage.setItem('nds_fb_url', url);
+    localStorage.setItem('nds_fb_key', key);
+    localStorage.setItem('nds_session', sid);
+    document.getElementById('session-tag').textContent = '# ' + sid;
+    showApp();
+  } catch(e) { toast('Errore: ' + e.message); }
+}
+
+function useDemo() {
+  localMode = true;
+  shows = DEMO.map(s=>({...s}));
+  document.getElementById('session-tag').textContent = 'demo locale';
+  setSynced(false);
+  showApp();
+}
+
+function pushShows() {
+  if (dbRef) dbRef.set(shows).catch(()=>{});
+}
+
+function setSynced(ok) {
+  document.getElementById('sdot').className = 'sdot' + (ok ? ' ok' : '');
+  document.getElementById('sync-txt').textContent = ok ? 'Sync' : 'Locale';
+}
+
+function showApp() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  if (!myShowId && shows.length) {
+    openChoose();
+  } else {
+    renderAll();
+  }
+}
+
+// ── HELPERS ──
+function pad(n) { return String(Math.floor(Math.abs(n))).padStart(2,'0'); }
+function fmtMSS(s) { s=Math.max(0,s); return pad(s/60)+':'+pad(s%60); }
+function nowSec() { return Math.floor(Date.now()/1000); }
+function getShow(id) { return shows.find(s=>s.id===id); }
+
+function getState(show) {
+  if (!show.startedAt) return { status:'idle', elapsed:0, remaining:show.duration*60, pct:0 };
+  const elapsed = nowSec() - show.startedAt;
+  const total   = show.duration * 60;
+  const remaining = total - elapsed;
+  if (remaining <= 0) return { status:'done', elapsed, remaining:0, pct:100 };
+  const ending = remaining <= 90;
+  return { status: ending?'ending':'running', elapsed, remaining, pct: Math.min(100,(elapsed/total)*100) };
+}
+
+// ── MY SHOW ──
+function renderMyShow() {
+  const show = getShow(myShowId);
+  if (!show) return;
+  const st = getState(show);
+
+  document.getElementById('my-name').textContent = show.title;
+  document.getElementById('my-room').textContent = '📍 ' + show.room;
+  document.getElementById('dur-val').textContent = show.duration + ' min';
+
+  const card   = document.getElementById('my-card');
+  const badge  = document.getElementById('my-badge');
+  const timer  = document.getElementById('my-timer');
+  const sub    = document.getElementById('my-sub');
+  const prog   = document.getElementById('my-prog');
+  const btnS   = document.getElementById('btn-start');
+  const btnStop= document.getElementById('btn-stop');
+  const btnR   = document.getElementById('btn-reset');
+
+  card.className = 'my-card';
+  timer.className = 'timer-display';
+
+  if (st.status === 'idle') {
+    badge.className='status-badge sb-idle'; badge.textContent='In attesa';
+    timer.className+=' idle'; timer.textContent='--:--';
+    sub.textContent='premi Inizia per avviare';
+    prog.style.width='0%'; prog.className='prog-fill';
+    btnS.disabled=false; btnStop.disabled=true; btnR.style.display='none';
+  } else if (st.status === 'running') {
+    card.classList.add('running');
+    badge.className='status-badge sb-running'; badge.innerHTML='<span class="sb-dot"></span>In corso';
+    timer.className+=' run'; timer.textContent=fmtMSS(st.remaining);
+    sub.textContent='alla fine';
+    prog.style.width=st.pct.toFixed(1)+'%'; prog.className='prog-fill pf-run';
+    btnS.disabled=true; btnStop.disabled=false; btnR.style.display='none';
+  } else if (st.status === 'ending') {
+    card.classList.add('ending');
+    badge.className='status-badge sb-ending'; badge.innerHTML='<span class="sb-dot"></span>Quasi finito';
+    timer.className+=' ending'; timer.textContent=fmtMSS(st.remaining);
+    sub.textContent='alla fine — preparati!';
+    prog.style.width=st.pct.toFixed(1)+'%'; prog.className='prog-fill pf-end';
+    btnS.disabled=true; btnStop.disabled=false; btnR.style.display='none';
+  } else {
+    badge.className='status-badge sb-done'; badge.textContent='Terminato';
+    timer.className+=' done'; timer.textContent='00:00';
+    sub.textContent='spettacolo completato';
+    prog.style.width='100%'; prog.className='prog-fill';
+    btnS.disabled=true; btnStop.disabled=true; btnR.style.display='inline-block';
+  }
+}
+
+function startShow() {
+  const show = getShow(myShowId); if (!show) return;
+  const idx = shows.indexOf(show);
+  shows[idx].startedAt = nowSec();
+  pushShows(); renderAll();
+  // vibrate on mobile
+  if (navigator.vibrate) navigator.vibrate(80);
+}
+
+function stopShow() {
+  const show = getShow(myShowId); if (!show) return;
+  const idx = shows.indexOf(show);
+  // set startedAt so that remaining=0
+  shows[idx].startedAt = nowSec() - show.duration*60 - 1;
+  pushShows(); renderAll();
+}
+
+function resetShow() {
+  const show = getShow(myShowId); if (!show) return;
+  const idx = shows.indexOf(show);
+  shows[idx].startedAt = null;
+  pushShows(); renderAll();
+}
+
+function changeDur(delta) {
+  const show = getShow(myShowId); if (!show) return;
+  const idx = shows.indexOf(show);
+  shows[idx].duration = Math.max(5, Math.min(120, (show.duration||20) + delta));
+  pushShows(); renderMyShow();
+}
+
+// ── ALL SHOWS ──
+function renderAll() {
+  renderMyShow();
+  const list = document.getElementById('all-list');
+  list.innerHTML = shows.map(show => {
+    const st = getState(show);
+    const isMine = show.id === myShowId;
+    let tc='idle', tv='--:--';
+    if (st.status==='running')       { tc='run';    tv=fmtMSS(st.remaining); }
+    else if (st.status==='ending')   { tc='ending'; tv=fmtMSS(st.remaining); }
+    else if (st.status==='done')     { tc='idle';   tv='Fine'; }
+
+    const barColor = show.color || '#3b82f6';
+    const barW = st.pct.toFixed(1);
+
+    return `<div class="show-item${isMine?' mine':''}${st.status==='running'?' live':''}${st.status==='ending'?' ending':''}" onclick="${isMine?'':'selectShow(\''+show.id+'\')'}">
+      <div class="si-color" style="background:${barColor}"></div>
+      <div class="si-info">
+        <div class="si-title">${escH(show.title)}</div>
+        <div class="si-room">${escH(show.room)}</div>
+      </div>
+      <div class="si-right">
+        ${isMine ? '<span class="si-mine-tag">Il tuo</span>' : ''}
+        <div class="si-timer ${tc}">${tv}</div>
+        <div class="si-dur">${show.duration} min</div>
+      </div>
+      <div class="si-bar" style="background:${barColor};width:${barW}%;opacity:0.5;"></div>
+    </div>`;
+  }).join('');
+}
+
+// ── CHOOSE MODAL ──
+function openChoose() {
+  const list = document.getElementById('choose-list');
+  list.innerHTML = shows.map(s => `
+    <div class="sheet-item" onclick="selectShow('${s.id}')">
+      <div class="si-dot" style="background:${s.color||'#3b82f6'}"></div>
+      <div>
+        <div style="font-size:15px;font-weight:700;">${escH(s.title)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escH(s.room)} · ${s.duration} min</div>
+      </div>
+    </div>`).join('');
+  document.getElementById('choose-modal').classList.add('open');
+}
+
+function closeChoose(e) {
+  if (e && e.target !== document.getElementById('choose-modal')) return;
+  document.getElementById('choose-modal').classList.remove('open');
+}
+
+function selectShow(id) {
+  myShowId = id;
+  localStorage.setItem('nds_my_show', id);
+  document.getElementById('choose-modal').classList.remove('open');
+  renderAll();
+  toast('Spettacolo selezionato ✓');
+}
+
+function escH(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+
+// ── TICK ──
+setInterval(renderAll, 1000);
+
+// ── INIT ──
+const PRESET_URL = "https://nottedellascienza2026-default-rtdb.europe-west1.firebasedatabase.app";
+const PRESET_KEY = "AIzaSyAIeLIDBH2p9ff7R1DtdpZAuXJ1HrRLF54";
+const PRESET_SID = "notte2026";
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Auto-connect with preset credentials
+  document.getElementById('s-url').value = PRESET_URL;
+  document.getElementById('s-key').value = PRESET_KEY;
+  document.getElementById('s-sid').value = PRESET_SID;
+  // Auto-connect immediately
+  connect();
+});
+</script>
+</body>
+</html>
